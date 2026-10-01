@@ -134,7 +134,7 @@
               Quick Management Operations
             </h3>
             <p class="text-xs text-slate-400 leading-relaxed">
-              Trigger synchronization across the connected Vercel deployments (<a href="https://index.nbtf.ca" target="_blank" class="text-amber-400 underline">index.nbtf.ca</a> and <a href="https://web.nbtf.ca" target="_blank" class="text-cyan-400 underline">web.nbtf.ca</a>).
+              Trigger synchronization across the connected Vercel deployments (<a href="https://index.nbtf.ca" target="_blank" class="text-amber-400 underline">index.nbtf.ca</a> and <a href="https://www.nbtf.ca" target="_blank" class="text-cyan-400 underline">www.nbtf.ca</a>).
             </p>
 
             <div class="flex flex-wrap gap-3 font-mono text-xs pt-2">
@@ -604,6 +604,78 @@
             </div>
           </div>
         </div>
+
+        <!-- Official Lore & Discord Configuration -->
+        <div v-if="wwwData.officialLore" class="admin-card p-6 rounded-2xl space-y-4">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <h3 class="text-base font-display font-bold text-white uppercase tracking-wider">
+              Official Lore & Developer Facts (Ryanblaze)
+            </h3>
+            <span class="text-xs font-mono text-indigo-400">Official Lore Canon</span>
+          </div>
+
+          <div class="space-y-4 font-mono text-xs">
+            <div>
+              <label class="block text-slate-400 mb-1">Developer Notice / Instructions</label>
+              <textarea
+                v-model="wwwData.officialLore.developerNotice"
+                rows="3"
+                class="w-full px-3 py-2 bg-facility-900 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-amber-400"
+              ></textarea>
+            </div>
+
+            <!-- Facts List -->
+            <div class="space-y-3">
+              <label class="block text-slate-400 font-bold">Official Lore Statements (5 Developer Canon Facts)</label>
+              <div
+                v-for="(fact, fIdx) in wwwData.officialLore.facts"
+                :key="fact.id || fIdx"
+                class="p-3 rounded-xl bg-facility-900 border border-slate-800 space-y-2"
+              >
+                <div class="flex items-center justify-between">
+                  <input
+                    v-model="fact.title"
+                    type="text"
+                    class="px-2.5 py-1 bg-facility-950 border border-slate-800 rounded text-indigo-300 font-bold text-xs"
+                    placeholder="Fact Title"
+                  />
+                  <span class="text-[10px] text-slate-500">FACT #{{ fIdx + 1 }}</span>
+                </div>
+                <input
+                  v-model="fact.statement"
+                  type="text"
+                  class="w-full px-2.5 py-1.5 bg-facility-950 border border-slate-800 rounded text-slate-200 text-xs"
+                  placeholder="Official Fact Statement"
+                />
+              </div>
+            </div>
+
+            <!-- Factions Discord Note -->
+            <div class="p-4 rounded-xl bg-facility-900 border border-indigo-500/30 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-indigo-300">Factions Discord Information</span>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-slate-500 text-[10px] mb-1">DISCORD NOTICE</label>
+                  <input
+                    v-model="wwwData.officialLore.discordInfo.text"
+                    type="text"
+                    class="w-full px-2.5 py-1.5 bg-facility-950 border border-slate-800 rounded text-slate-200 text-xs"
+                  />
+                </div>
+                <div>
+                  <label class="block text-slate-500 text-[10px] mb-1">DISCORD URL</label>
+                  <input
+                    v-model="wwwData.officialLore.discordInfo.url"
+                    type="text"
+                    class="w-full px-2.5 py-1.5 bg-facility-950 border border-slate-800 rounded text-slate-200 text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- TAB 4: RAW REDIS JSON DATASTORE -->
@@ -665,7 +737,7 @@
         <div class="flex items-center gap-4">
           <a href="https://index.nbtf.ca" target="_blank" class="hover:text-amber-400 transition-colors">Directory Portal</a>
           <span class="text-slate-700">&bull;</span>
-          <a href="https://web.nbtf.ca" target="_blank" class="hover:text-amber-400 transition-colors">Game Reference</a>
+          <a href="https://www.nbtf.ca" target="_blank" class="hover:text-amber-400 transition-colors">Game Reference</a>
         </div>
       </div>
     </footer>
@@ -694,7 +766,7 @@ const rawWwwJson = ref('')
 const tabs = computed(() => [
   { id: 'overview', label: 'Overview & Telemetry' },
   { id: 'index', label: 'Directory Links (i.nbtf.ca)', count: totalIndexLinks.value },
-  { id: 'www', label: 'Game Dossier & Roles (web.nbtf.ca)', count: wwwData.value?.roles?.length },
+  { id: 'www', label: 'Game Dossier & Roles (www.nbtf.ca)', count: wwwData.value?.roles?.length },
   { id: 'redis', label: 'Redis Datastore JSON' }
 ])
 

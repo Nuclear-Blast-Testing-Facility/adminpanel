@@ -746,8 +746,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { defaultDirectoryData, type DirectoryData } from '~/server/utils/defaultDirectory'
-import { defaultWwwData, type WwwSiteData } from '~/server/utils/defaultGameData'
+import type { DirectoryData, WwwSiteData } from '~/types'
 
 const activeTab = ref('overview')
 const saving = ref(false)
@@ -756,8 +755,46 @@ const statusType = ref<'success' | 'error'>('success')
 const redisMode = ref('memory')
 const redisHealthy = ref(true)
 
-const indexData = ref<DirectoryData>(JSON.parse(JSON.stringify(defaultDirectoryData)))
-const wwwData = ref<WwwSiteData>(JSON.parse(JSON.stringify(defaultWwwData)))
+const indexData = ref<DirectoryData>({
+  siteTitle: 'NBTF.CA Domain Directory',
+  siteTagline: 'Official subdomain directory, network routing, and contact endpoints for nbtf.ca',
+  disclaimer: '',
+  maintainerNotice: '',
+  bannerAnnouncement: {
+    enabled: false,
+    text: '',
+    type: 'info',
+    link: ''
+  },
+  categories: []
+})
+
+const wwwData = ref<WwwSiteData>({
+  siteTitle: 'NBTF // Operations Dossier',
+  siteTagline: 'Nuclear Blast Testing Facility',
+  heroDescription: '',
+  robloxExperienceUrl: 'https://www.roblox.com/games/103282470/Nuclear-Blast-Testing-Facility',
+  discordUrl: 'https://discord.gg/nbtf',
+  bannerAlert: {
+    enabled: false,
+    level: 'NOMINAL',
+    message: ''
+  },
+  roles: [],
+  locations: [],
+  sabotageTerminals: [],
+  gamepasses: [],
+  officialLore: {
+    developerNotice: '',
+    creator: 'Ryanblaze',
+    facts: [],
+    discordInfo: {
+      text: '',
+      url: 'https://discord.gg/nbtf',
+      displayUrl: 'discord.gg/nbtf'
+    }
+  }
+})
 const auditLogs = ref<any[]>([])
 
 const rawIndexJson = ref('')

@@ -1,4 +1,4 @@
-import { d as defineEventHandler, j as getCookie, b as getHeader, v as verifyToken } from '../../../_/nitro.mjs';
+import { d as defineEventHandler, i as getCookie, a as getHeader, v as verifyToken } from '../../../_/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:events';

@@ -3,10 +3,9 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     return
   }
 
-  // Check auth status
   try {
-    const { data } = await useFetch('/api/auth/session')
-    if (!data.value?.authenticated) {
+    const session = await $fetch<{ authenticated: boolean }>('/api/auth/session')
+    if (!session || !session.authenticated) {
       return navigateTo('/login')
     }
   } catch (err) {

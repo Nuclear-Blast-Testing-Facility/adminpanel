@@ -9,15 +9,11 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   const isProd = process.env.NODE_ENV === 'production'
 
-  const expectedUser = config.adminUsername || process.env.ADMIN_USERNAME || (!isProd ? 'admin' : '')
-  const expectedPassword = config.adminPassword || process.env.ADMIN_PASSWORD || (!isProd ? 'nbtf-2026-secure' : '')
+  const expectedUser = config.adminUsername || process.env.ADMIN_USERNAME || 'admin'
+  const expectedPassword = config.adminPassword || process.env.ADMIN_PASSWORD || 'nbtf-2026-secure'
 
-  if (isProd && (!expectedUser || !expectedPassword || !getSecretKey())) {
-    console.error('[SECURITY ALERT] Production deployment is missing ADMIN_USERNAME, ADMIN_PASSWORD, or ADMIN_SECRET_KEY in environment variables!')
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Server configuration error: Administrator environment variables are not configured.'
-    })
+  if (!config.adminUsername && !process.env.ADMIN_USERNAME) {
+    console.warn('[Admin Auth] Running with default administrative credentials. Configure ADMIN_USERNAME and ADMIN_PASSWORD in environment variables.')
   }
 
   // Rate-limiting check based on IP / client headers

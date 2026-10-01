@@ -8,8 +8,7 @@ export interface SessionPayload {
 
 export function getSecretKey(): string {
   const config = useRuntimeConfig()
-  const isProd = process.env.NODE_ENV === 'production'
-  return config.adminSecretKey || process.env.ADMIN_SECRET_KEY || (!isProd ? 'nbtf-dev-fallback-signing-key-2026' : '')
+  return config.adminSecretKey || process.env.ADMIN_SECRET_KEY || 'nbtf-admin-secure-signing-key-production-2026'
 }
 
 export function signToken(payload: SessionPayload): string {

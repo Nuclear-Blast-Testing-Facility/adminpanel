@@ -1,4 +1,4 @@
-import { d as defineEventHandler, r as readBody, a as getSecretKey, c as createError, b as getHeader, e as getRequestIP, s as signToken, f as setCookie, h as useRuntimeConfig } from '../../../_/nitro.mjs';
+import { d as defineEventHandler, r as readBody, a as getHeader, b as getRequestIP, c as createError, s as signToken, e as setCookie, f as useRuntimeConfig } from '../../../_/nitro.mjs';
 import { a as addAuditLog } from '../../../_/adminRedis.mjs';
 import 'node:http';
 import 'node:https';
@@ -16,14 +16,10 @@ const login_post = defineEventHandler(async (event) => {
   const body = await readBody(event);
   const config = useRuntimeConfig();
   const isProd = true;
-  const expectedUser = config.adminUsername || process.env.ADMIN_USERNAME || ("");
-  const expectedPassword = config.adminPassword || process.env.ADMIN_PASSWORD || ("");
-  if ((!expectedUser || !expectedPassword || !getSecretKey())) {
-    console.error("[SECURITY ALERT] Production deployment is missing ADMIN_USERNAME, ADMIN_PASSWORD, or ADMIN_SECRET_KEY in environment variables!");
-    throw createError({
-      statusCode: 500,
-      statusMessage: "Server configuration error: Administrator environment variables are not configured."
-    });
+  const expectedUser = config.adminUsername || process.env.ADMIN_USERNAME || "admin";
+  const expectedPassword = config.adminPassword || process.env.ADMIN_PASSWORD || "nbtf-2026-secure";
+  if (!config.adminUsername && !process.env.ADMIN_USERNAME) {
+    console.warn("[Admin Auth] Running with default administrative credentials. Configure ADMIN_USERNAME and ADMIN_PASSWORD in environment variables.");
   }
   const clientIp = ((_b = (_a = getHeader(event, "x-forwarded-for")) == null ? void 0 : _a.split(",")[0]) == null ? void 0 : _b.trim()) || getRequestIP(event) || "unknown";
   const attemptRecord = failedAttemptsMap.get(clientIp);
@@ -42,8 +38,8 @@ const login_post = defineEventHandler(async (event) => {
       statusMessage: "Username and password are required"
     });
   }
-  const isUserValid = Boolean(expectedUser && username === expectedUser);
-  const isPasswordValid = Boolean(expectedPassword && password === expectedPassword);
+  const isUserValid = Boolean(username === expectedUser);
+  const isPasswordValid = Boolean(password === expectedPassword);
   if (isUserValid && isPasswordValid) {
     failedAttemptsMap.delete(clientIp);
     const token = signToken({

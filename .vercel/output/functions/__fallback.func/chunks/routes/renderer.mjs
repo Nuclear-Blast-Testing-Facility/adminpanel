@@ -1,11 +1,16 @@
 import { createRenderer, getRequestDependencies, getPreloadLinks, getPrefetchLinks } from 'vue-bundle-renderer/runtime';
-import { k as joinRelativeURL, h as useRuntimeConfig, l as encodePath, m as defineRenderHandler, n as getQuery, c as createError, o as getRouteRules, q as getResponseStatusText, x as getResponseStatus, u as useNitroApp } from '../_/nitro.mjs';
-import { renderToString } from 'vue/server-renderer';
+import { j as joinRelativeURL, f as useRuntimeConfig, k as encodePath, l as defineRenderHandler, m as getQuery, c as createError, n as getRouteRules, o as getResponseStatusText, q as getResponseStatus, u as useNitroApp } from '../_/nitro.mjs';
 import { createHead as createHead$1, propsToString, renderSSRHead } from 'unhead/server';
 import { stringify, uneval } from 'devalue';
-import { walkResolver } from 'unhead/utils';
-import { isRef, toValue, hasInjectionContext, inject, getCurrentScope, ref, watchEffect, getCurrentInstance, onBeforeUnmount, onDeactivated, onActivated } from 'vue';
+import { isRef, toValue } from 'vue';
 import { DeprecationsPlugin, PromisesPlugin, TemplateParamsPlugin, AliasSortingPlugin } from 'unhead/plugins';
+import 'node:http';
+import 'node:https';
+import 'node:events';
+import 'node:buffer';
+import 'node:fs';
+import 'node:path';
+import 'node:crypto';
 
 const VueResolver = (_, value) => {
   return isRef(value) ? toValue(value) : value;
@@ -22,52 +27,6 @@ function vueInstall(head) {
     }
   };
   return plugin.install;
-}
-
-// @__NO_SIDE_EFFECTS__
-function injectHead() {
-  if (hasInjectionContext()) {
-    const instance = inject(headSymbol);
-    if (instance) {
-      return instance;
-    }
-  }
-  throw new Error("useHead() was called without provide context, ensure you call it through the setup() function.");
-}
-function useHead(input, options = {}) {
-  const head = options.head || /* @__PURE__ */ injectHead();
-  return head.ssr ? head.push(input || {}, options) : clientUseHead(head, input, options);
-}
-function clientUseHead(head, input, options = {}) {
-  const scope = getCurrentScope();
-  if (scope && !scope.active)
-    return { patch() {
-    }, dispose() {
-    }, _poll() {
-    } };
-  const deactivated = ref(false);
-  let entry;
-  watchEffect(() => {
-    const i = deactivated.value ? {} : walkResolver(input, VueResolver);
-    if (entry) {
-      entry.patch(i);
-    } else {
-      entry = head.push(i, options);
-    }
-  });
-  const vm = getCurrentInstance();
-  if (vm) {
-    onBeforeUnmount(() => {
-      entry.dispose();
-    });
-    onDeactivated(() => {
-      deactivated.value = true;
-    });
-    onActivated(() => {
-      deactivated.value = false;
-    });
-  }
-  return entry;
 }
 
 // @__NO_SIDE_EFFECTS__
@@ -94,10 +53,6 @@ const appTeleportAttrs = {"id":"teleports"};
 
 const appId = "nuxt-app";
 
-function baseURL() {
-	
-	return useRuntimeConfig().app.baseURL;
-}
 function buildAssetsDir() {
 	
 	return useRuntimeConfig().app.buildAssetsDir;
@@ -119,31 +74,7 @@ globalThis.__publicAssetsURL = publicAssetsURL;
 const APP_ROOT_OPEN_TAG = `<${appRootTag}${propsToString(appRootAttrs)}>`;
 const APP_ROOT_CLOSE_TAG = `</${appRootTag}>`;
 // @ts-expect-error file will be produced after app build
-const getServerEntry = () => import('../build/server.mjs').then((r) => r.default || r);
-// @ts-expect-error file will be produced after app build
 const getPrecomputedDependencies = () => import('../build/client.precomputed.mjs').then((r) => r.default || r).then((r) => typeof r === "function" ? r() : r);
-
-const getSSRRenderer = lazyCachedFunction(async () => {
-	
-	const createSSRApp = await getServerEntry();
-	if (!createSSRApp) {
-		throw new Error("Server bundle is not available");
-	}
-	
-	const precomputed = await getPrecomputedDependencies();
-	
-	const renderer = createRenderer(createSSRApp, {
-		precomputed,
-		manifest: undefined,
-		renderToString: renderToString$1,
-		buildAssetsURL
-	});
-	async function renderToString$1(input, context) {
-		const html = await renderToString(input, context);
-		return APP_ROOT_OPEN_TAG + html + APP_ROOT_CLOSE_TAG;
-	}
-	return renderer;
-});
 
 const getSPARenderer = lazyCachedFunction(async () => {
 	const precomputed = await getPrecomputedDependencies();
@@ -189,10 +120,8 @@ function lazyCachedFunction(fn) {
 	};
 }
 function getRenderer(ssrContext) {
-	return ssrContext.noSSR ? getSPARenderer() : getSSRRenderer();
+	return getSPARenderer() ;
 }
-// @ts-expect-error file will be produced after app build
-const getSSRStyles = lazyCachedFunction(() => import('../build/styles.mjs').then((r) => r.default || r));
 
 function renderPayloadJsonScript(opts) {
 	const contents = opts.data ? encodeForwardSlashes(stringify(opts.data, opts.ssrContext["~payloadReducers"])) : "";
@@ -200,7 +129,7 @@ function renderPayloadJsonScript(opts) {
 		"type": "application/json",
 		"innerHTML": contents,
 		"data-nuxt-data": appId,
-		"data-ssr": !(opts.ssrContext.noSSR)
+		"data-ssr": false
 	};
 	{
 		payload.id = "__NUXT_DATA__";
@@ -235,7 +164,7 @@ function createSSRContext(event) {
 		url,
 		event,
 		runtimeConfig: useRuntimeConfig(event),
-		noSSR: event.context.nuxt?.noSSR || (false),
+		noSSR: true,
 		head: createHead(unheadOptions),
 		error: false,
 		nuxt: undefined,
@@ -251,22 +180,7 @@ function setSSRError(ssrContext, error) {
 	ssrContext.url = error.url;
 }
 
-async function renderInlineStyles(usedModules) {
-	const styleMap = await getSSRStyles();
-	const inlinedStyles = new Set();
-	for (const mod of usedModules) {
-		if (mod in styleMap && styleMap[mod]) {
-			for (const style of await styleMap[mod]()) {
-				inlinedStyles.add(style);
-			}
-		}
-	}
-	return Array.from(inlinedStyles).map((style) => ({ innerHTML: style }));
-}
-
 const renderSSRHeadOptions = {"omitLineBreaks":false};
-
-const entryIds = ["node_modules/nuxt/dist/app/entry.js"];
 
 // @ts-expect-error private property consumed by vite-generated url helpers
 globalThis.__buildAssetsURL = buildAssetsURL;
@@ -311,12 +225,7 @@ async function renderRoute(event, ssrError) {
 	
 	!ssrContext.noSSR && (NUXT_RUNTIME_PAYLOAD_EXTRACTION);
 	
-	const renderer = await getRenderer(ssrContext);
-	{
-		for (const id of entryIds) {
-			ssrContext.modules.add(id);
-		}
-	}
+	const renderer = await getRenderer();
 	const _rendered = await renderer.renderToString(ssrContext).catch(async (error) => {
 		
 		
@@ -330,7 +239,7 @@ async function renderRoute(event, ssrError) {
 	});
 	
 	
-	const inlinedStyles = !ssrContext["~renderResponse"] && !ssrContext._renderResponse && true ? await renderInlineStyles(ssrContext.modules ?? []) : [];
+	const inlinedStyles = [];
 	await ssrContext.nuxt?.hooks.callHook("app:rendered", {
 		ssrContext,
 		renderResult: _rendered
@@ -453,10 +362,5 @@ function renderHTMLDocument(html) {
 	return "<!DOCTYPE html>" + `<html${joinAttrs(html.htmlAttrs)}>` + `<head>${joinTags(html.head)}</head>` + `<body${joinAttrs(html.bodyAttrs)}>${joinTags(html.bodyPrepend)}${joinTags(html.body)}${joinTags(html.bodyAppend)}</body>` + "</html>";
 }
 
-const renderer = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: handler
-}, Symbol.toStringTag, { value: 'Module' }));
-
-export { baseURL as b, headSymbol as h, renderer as r, useHead as u };
+export { handler as default };
 //# sourceMappingURL=renderer.mjs.map

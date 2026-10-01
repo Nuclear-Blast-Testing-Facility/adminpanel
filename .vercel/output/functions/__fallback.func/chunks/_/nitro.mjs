@@ -161,8 +161,6 @@ function stringifyQuery(query) {
 const PROTOCOL_STRICT_REGEX = /^[\s\w\0+.-]{2,}:([/\\]{1,2})/;
 const PROTOCOL_REGEX = /^[\s\w\0+.-]{2,}:([/\\]{2})?/;
 const PROTOCOL_RELATIVE_REGEX = /^([/\\]\s*){2,}[^/\\]/;
-const PROTOCOL_SCRIPT_RE = /^[\s\0]*(blob|data|javascript|vbscript):$/i;
-const TRAILING_SLASH_RE = /\/$|\/\?|\/#/;
 const JOIN_LEADING_SLASH_RE = /^\.?\//;
 function hasProtocol(inputString, opts = {}) {
   if (typeof opts === "boolean") {
@@ -173,52 +171,20 @@ function hasProtocol(inputString, opts = {}) {
   }
   return PROTOCOL_REGEX.test(inputString) || (opts.acceptRelative ? PROTOCOL_RELATIVE_REGEX.test(inputString) : false);
 }
-function isScriptProtocol(protocol) {
-  return !!protocol && PROTOCOL_SCRIPT_RE.test(protocol);
-}
 function hasTrailingSlash(input = "", respectQueryAndFragment) {
-  if (!respectQueryAndFragment) {
+  {
     return input.endsWith("/");
   }
-  return TRAILING_SLASH_RE.test(input);
 }
 function withoutTrailingSlash(input = "", respectQueryAndFragment) {
-  if (!respectQueryAndFragment) {
+  {
     return (hasTrailingSlash(input) ? input.slice(0, -1) : input) || "/";
   }
-  if (!hasTrailingSlash(input, true)) {
-    return input || "/";
-  }
-  let path = input;
-  let fragment = "";
-  const fragmentIndex = input.indexOf("#");
-  if (fragmentIndex !== -1) {
-    path = input.slice(0, fragmentIndex);
-    fragment = input.slice(fragmentIndex);
-  }
-  const [s0, ...s] = path.split("?");
-  const cleanPath = s0.endsWith("/") ? s0.slice(0, -1) : s0;
-  return (cleanPath || "/") + (s.length > 0 ? `?${s.join("?")}` : "") + fragment;
 }
 function withTrailingSlash(input = "", respectQueryAndFragment) {
-  if (!respectQueryAndFragment) {
+  {
     return input.endsWith("/") ? input : input + "/";
   }
-  if (hasTrailingSlash(input, true)) {
-    return input || "/";
-  }
-  let path = input;
-  let fragment = "";
-  const fragmentIndex = input.indexOf("#");
-  if (fragmentIndex !== -1) {
-    path = input.slice(0, fragmentIndex);
-    fragment = input.slice(fragmentIndex);
-    if (!path) {
-      return fragment;
-    }
-  }
-  const [s0, ...s] = path.split("?");
-  return s0 + "/" + (s.length > 0 ? `?${s.join("?")}` : "") + fragment;
 }
 function hasLeadingSlash(input = "") {
   return input.startsWith("/");
@@ -434,7 +400,7 @@ function tryDecode(str, decode2) {
 }
 
 const fieldContentRegExp = /^[\u0009\u0020-\u007E\u0080-\u00FF]+$/;
-function serialize$2(name, value, options) {
+function serialize$1(name, value, options) {
   const opt = options || {};
   const enc = opt.encode || encodeURIComponent;
   if (typeof enc !== "function") {
@@ -1298,7 +1264,7 @@ function setCookie(event, name, value, serializeOptions = {}) {
   if (!serializeOptions.path) {
     serializeOptions = { path: "/", ...serializeOptions };
   }
-  const newCookie = serialize$2(name, value, serializeOptions);
+  const newCookie = serialize$1(name, value, serializeOptions);
   const currentCookies = splitCookiesString(
     event.node.res.getHeader("set-cookie")
   );
@@ -2842,8 +2808,7 @@ function createNodeFetch() {
 const fetch = globalThis.fetch ? (...args) => globalThis.fetch(...args) : createNodeFetch();
 const Headers$1 = globalThis.Headers || s;
 const AbortController = globalThis.AbortController || i;
-const ofetch = createFetch({ fetch, Headers: Headers$1, AbortController });
-const $fetch = ofetch;
+createFetch({ fetch, Headers: Headers$1, AbortController });
 
 function wrapToPromise(value) {
   if (!value || typeof value.then !== "function") {
@@ -3629,153 +3594,6 @@ function useStorage(base = "") {
   return base ? prefixStorage(storage, base) : storage;
 }
 
-function serialize$1(input) {
-	if (typeof input === "string") return `'${input}'`;
-	return new Serializer().serialize(input);
-}
-const asciiOrder = " _-,;:!?.'\"()[]{}@*/\\&#%`^+<=>|~$0123456789abcdefghijklmnopqrstuvwxyz";
-const asciiWeights = /*@__PURE__*/ (function() {
-	const weights = /* @__PURE__ */ new Uint8Array(128);
-	for (let i = 0; i < 69; i++) weights[asciiOrder.charCodeAt(i)] = i + 1;
-	for (let code = 65; code <= 90; code++) weights[code] = weights[code + 32];
-	return weights;
-})();
-function compareStrings(a, b) {
-	if (a === b) return 0;
-	const length = Math.min(a.length, b.length);
-	let tieBreaker = 0;
-	for (let i = 0; i < length; i++) {
-		const codeA = a.charCodeAt(i);
-		const codeB = b.charCodeAt(i);
-		if (codeA === codeB) continue;
-		const weightA = codeA < 128 && asciiWeights[codeA] ? asciiWeights[codeA] : codeA + 128;
-		const weightB = codeB < 128 && asciiWeights[codeB] ? asciiWeights[codeB] : codeB + 128;
-		if (weightA !== weightB) return weightA < weightB ? -1 : 1;
-		if (tieBreaker === 0) tieBreaker = codeA > codeB ? -1 : 1;
-	}
-	if (a.length !== b.length) return a.length < b.length ? -1 : 1;
-	return tieBreaker;
-}
-const Serializer = /*@__PURE__*/ (function() {
-	class Serializer {
-		#context = /* @__PURE__ */ new Map();
-		compare(a, b) {
-			const typeA = typeof a;
-			const typeB = typeof b;
-			if (typeA === "string" && typeB === "string") return compareStrings(a, b);
-			if (typeA === "number" && typeB === "number") return a - b;
-			return compareStrings(this.serialize(a, true), this.serialize(b, true));
-		}
-		serialize(value, noQuotes) {
-			if (value === null) return "null";
-			switch (typeof value) {
-				case "string": return noQuotes ? value : `'${value}'`;
-				case "bigint": return `${value}n`;
-				case "object": return this.$object(value);
-				case "function": return this.$function(value);
-			}
-			return String(value);
-		}
-		serializeObject(object) {
-			const objString = Object.prototype.toString.call(object);
-			if (objString !== "[object Object]") return this.serializeBuiltInType(objString.length < 10 ? `unknown:${objString}` : objString.slice(8, -1), object);
-			const constructor = object.constructor;
-			const objName = constructor === Object || constructor === void 0 ? "" : constructor.name;
-			if (objName !== "" && globalThis[objName] === constructor) return this.serializeBuiltInType(objName, object);
-			if ("toJSON" in object && typeof object.toJSON === "function") {
-				const json = object.toJSON();
-				return objName + (json !== null && typeof json === "object" ? this.$object(json) : `(${this.serialize(json)})`);
-			}
-			const keys = Object.keys(object).sort(compareStrings);
-			let content = `${objName}{`;
-			for (let i = 0; i < keys.length; i++) {
-				const key = keys[i];
-				content += `${key}:${this.serialize(object[key])}`;
-				if (i < keys.length - 1) content += ",";
-			}
-			return content + "}";
-		}
-		serializeBuiltInType(type, object) {
-			const handler = this["$" + type];
-			if (handler) return handler.call(this, object);
-			if (typeof object.entries === "function") return this.serializeObjectEntries(type, object.entries());
-			throw new Error(`Cannot serialize ${type}`);
-		}
-		serializeObjectEntries(type, entries) {
-			const sortedEntries = Array.from(entries).sort((a, b) => this.compare(a[0], b[0]));
-			let content = `${type}{`;
-			for (let i = 0; i < sortedEntries.length; i++) {
-				const [key, value] = sortedEntries[i];
-				content += `${this.serialize(key, true)}:${this.serialize(value)}`;
-				if (i < sortedEntries.length - 1) content += ",";
-			}
-			return content + "}";
-		}
-		$object(object) {
-			let content = this.#context.get(object);
-			if (content === void 0) {
-				this.#context.set(object, `#${this.#context.size}`);
-				content = this.serializeObject(object);
-				this.#context.set(object, content);
-			}
-			return content;
-		}
-		$function(fn) {
-			const fnStr = Function.prototype.toString.call(fn);
-			if (fnStr.slice(-15) === "[native code] }") return `${fn.name || ""}()[native]`;
-			return `${fn.name}(${fn.length})${fnStr.replace(/\s*\n\s*/g, "")}`;
-		}
-		$Array(arr) {
-			let content = "[";
-			for (let i = 0; i < arr.length; i++) {
-				content += this.serialize(arr[i]);
-				if (i < arr.length - 1) content += ",";
-			}
-			return content + "]";
-		}
-		$Date(date) {
-			try {
-				return `Date(${date.toISOString()})`;
-			} catch {
-				return `Date(null)`;
-			}
-		}
-		$ArrayBuffer(arr) {
-			return `ArrayBuffer[${new Uint8Array(arr).join(",")}]`;
-		}
-		$Set(set) {
-			return `Set${this.$Array(Array.from(set).sort((a, b) => this.compare(a, b)))}`;
-		}
-		$Map(map) {
-			return this.serializeObjectEntries("Map", map.entries());
-		}
-	}
-	for (const type of [
-		"Error",
-		"RegExp",
-		"URL"
-	]) Serializer.prototype["$" + type] = function(val) {
-		return `${type}(${val})`;
-	};
-	for (const type of [
-		"Int8Array",
-		"Uint8Array",
-		"Uint8ClampedArray",
-		"Int16Array",
-		"Uint16Array",
-		"Int32Array",
-		"Uint32Array",
-		"Float32Array",
-		"Float64Array"
-	]) Serializer.prototype["$" + type] = function(arr) {
-		return `${type}[${arr.join(",")}]`;
-	};
-	for (const type of ["BigInt64Array", "BigUint64Array"]) Serializer.prototype["$" + type] = function(arr) {
-		return `${type}[${arr.join("n,")}${arr.length > 0 ? "n" : ""}]`;
-	};
-	return Serializer;
-})();
-
 const fastHash = /*@__PURE__*/ (() => globalThis.process?.getBuiltinModule?.("crypto")?.hash)();
 const algorithm = "sha256";
 const encoding = "base64url";
@@ -3783,10 +3601,6 @@ function digest(data) {
 	if (fastHash) return fastHash(algorithm, data, encoding);
 	const h = createHash(algorithm).update(data);
 	return globalThis.process?.versions?.webcontainer ? h.digest().toString(encoding) : h.digest(encoding);
-}
-
-function hash$1(input) {
-	return digest(serialize$1(input));
 }
 
 const Hasher = /* @__PURE__ */ (() => {
@@ -4493,7 +4307,7 @@ function _expandFromEnv(value) {
 const _inlineRuntimeConfig = {
   "app": {
     "baseURL": "/",
-    "buildId": "2602659a-800b-4bca-8033-55586a6d0b17",
+    "buildId": "5b7f8f0a-1b03-4a3d-ae7c-8e7e616b4bdc",
     "buildAssetsDir": "/_nuxt/",
     "cdnURL": ""
   },
@@ -4574,124 +4388,6 @@ new Proxy(/* @__PURE__ */ Object.create(null), {
     return void 0;
   }
 });
-
-function createContext(opts = {}) {
-  let currentInstance;
-  let isSingleton = false;
-  const checkConflict = (instance) => {
-    if (currentInstance && currentInstance !== instance) {
-      throw new Error("Context conflict");
-    }
-  };
-  let als;
-  if (opts.asyncContext) {
-    const _AsyncLocalStorage = opts.AsyncLocalStorage || globalThis.AsyncLocalStorage;
-    if (_AsyncLocalStorage) {
-      als = new _AsyncLocalStorage();
-    } else {
-      console.warn("[unctx] `AsyncLocalStorage` is not provided.");
-    }
-  }
-  const _getCurrentInstance = () => {
-    if (als) {
-      const instance = als.getStore();
-      if (instance !== void 0) {
-        return instance;
-      }
-    }
-    return currentInstance;
-  };
-  return {
-    use: () => {
-      const _instance = _getCurrentInstance();
-      if (_instance === void 0) {
-        throw new Error("Context is not available");
-      }
-      return _instance;
-    },
-    tryUse: () => {
-      return _getCurrentInstance();
-    },
-    set: (instance, replace) => {
-      if (!replace) {
-        checkConflict(instance);
-      }
-      currentInstance = instance;
-      isSingleton = true;
-    },
-    unset: () => {
-      currentInstance = void 0;
-      isSingleton = false;
-    },
-    call: (instance, callback) => {
-      checkConflict(instance);
-      currentInstance = instance;
-      try {
-        return als ? als.run(instance, callback) : callback();
-      } finally {
-        if (!isSingleton) {
-          currentInstance = void 0;
-        }
-      }
-    },
-    async callAsync(instance, callback) {
-      currentInstance = instance;
-      const onRestore = () => {
-        currentInstance = instance;
-      };
-      const onLeave = () => currentInstance === instance ? onRestore : void 0;
-      asyncHandlers.add(onLeave);
-      try {
-        const r = als ? als.run(instance, callback) : callback();
-        if (!isSingleton) {
-          currentInstance = void 0;
-        }
-        return await r;
-      } finally {
-        asyncHandlers.delete(onLeave);
-      }
-    }
-  };
-}
-function createNamespace(defaultOpts = {}) {
-  const contexts = {};
-  return {
-    get(key, opts = {}) {
-      if (!contexts[key]) {
-        contexts[key] = createContext({ ...defaultOpts, ...opts });
-      }
-      return contexts[key];
-    }
-  };
-}
-const _globalThis = typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : typeof global !== "undefined" ? global : {};
-const globalKey = "__unctx__";
-const defaultNamespace = _globalThis[globalKey] || (_globalThis[globalKey] = createNamespace());
-const getContext = (key, opts = {}) => defaultNamespace.get(key, opts);
-const asyncHandlersKey = "__unctx_async_handlers__";
-const asyncHandlers = _globalThis[asyncHandlersKey] || (_globalThis[asyncHandlersKey] = /* @__PURE__ */ new Set());
-function executeAsync(function_) {
-  const restores = [];
-  for (const leaveHandler of asyncHandlers) {
-    const restore2 = leaveHandler();
-    if (restore2) {
-      restores.push(restore2);
-    }
-  }
-  const restore = () => {
-    for (const restore2 of restores) {
-      restore2();
-    }
-  };
-  let awaitable = function_();
-  if (awaitable && typeof awaitable === "object" && "catch" in awaitable) {
-    awaitable = awaitable.catch((error) => {
-      restore();
-      throw error;
-    });
-  }
-  return [awaitable, restore];
-}
 
 function isPathInScope(pathname, base) {
   let canonical;
@@ -4965,13 +4661,10 @@ const plugins = [
 
 function getSecretKey() {
   const config = useRuntimeConfig();
-  return config.adminSecretKey || process.env.ADMIN_SECRET_KEY || ("");
+  return config.adminSecretKey || process.env.ADMIN_SECRET_KEY || "nbtf-admin-secure-signing-key-production-2026";
 }
 function signToken(payload) {
   const secret = getSecretKey();
-  if (!secret) {
-    throw new Error("Missing ADMIN_SECRET_KEY in production");
-  }
   const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = nodeCrypto.createHmac("sha256", secret).update(data).digest("base64url");
   return `${data}.${signature}`;
@@ -4981,7 +4674,7 @@ function verifyToken(token) {
     const [data, signature] = token.split(".");
     if (!data || !signature) return null;
     const secret = getSecretKey();
-    if (!secret) return null;
+    if (!secret) ;
     const expectedSignature = nodeCrypto.createHmac("sha256", secret).update(data).digest("base64url");
     if (!nodeCrypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
       return null;
@@ -5031,7 +4724,7 @@ const _lazy_jEUH2h = () => import('../routes/api/health.get.mjs');
 const _lazy_gb5pRP = () => import('../routes/api/index-data.mjs');
 const _lazy_Al0okU = () => import('../routes/api/reset-defaults.post.mjs');
 const _lazy_lCKXSN = () => import('../routes/api/www-data.mjs');
-const _lazy_LRO9Ru = () => import('../routes/renderer.mjs').then(function (n) { return n.r; });
+const _lazy_LRO9Ru = () => import('../routes/renderer.mjs');
 
 const handlers = [
   { route: '', handler: _tA6TUR, lazy: false, middleware: true, method: undefined },
@@ -5228,5 +4921,5 @@ function defineRenderHandler(render) {
   });
 }
 
-export { $fetch as $, hasProtocol as A, isScriptProtocol as B, joinURL as C, sanitizeStatusCode as D, getContext as E, createHooks as F, executeAsync as G, defu as H, hash$1 as I, withTrailingSlash as J, withoutTrailingSlash as K, getSecretKey as a, getHeader as b, createError$1 as c, defineEventHandler as d, getRequestIP as e, setCookie as f, getRouteRulesForPath as g, useRuntimeConfig as h, deleteCookie as i, getCookie as j, joinRelativeURL as k, encodePath as l, defineRenderHandler as m, getQuery as n, getRouteRules as o, parseQuery as p, getResponseStatusText as q, readBody as r, signToken as s, toNodeListener as t, useNitroApp as u, verifyToken as v, withQuery as w, getResponseStatus as x, parseURL as y, decodePath as z };
+export { getHeader as a, getRequestIP as b, createError$1 as c, defineEventHandler as d, setCookie as e, useRuntimeConfig as f, getRouteRulesForPath as g, deleteCookie as h, getCookie as i, joinRelativeURL as j, encodePath as k, defineRenderHandler as l, getQuery as m, getRouteRules as n, getResponseStatusText as o, parseQuery as p, getResponseStatus as q, readBody as r, signToken as s, toNodeListener as t, useNitroApp as u, verifyToken as v, withQuery as w };
 //# sourceMappingURL=nitro.mjs.map

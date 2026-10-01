@@ -1060,6 +1060,20 @@ function getRequestURL(event, opts = {}) {
   );
   return new URL(path, `${protocol}://${host}`);
 }
+function getRequestIP(event, opts = {}) {
+  if (event.context.clientAddress) {
+    return event.context.clientAddress;
+  }
+  if (opts.xForwardedFor) {
+    const xForwardedFor = getRequestHeader(event, "x-forwarded-for")?.split(",").shift()?.trim();
+    if (xForwardedFor) {
+      return xForwardedFor;
+    }
+  }
+  if (event.node.req.socket.remoteAddress) {
+    return event.node.req.socket.remoteAddress;
+  }
+}
 
 const RawBodySymbol = Symbol.for("h3RawBody");
 const ParsedBodySymbol = Symbol.for("h3ParsedBody");
@@ -4479,7 +4493,7 @@ function _expandFromEnv(value) {
 const _inlineRuntimeConfig = {
   "app": {
     "baseURL": "/",
-    "buildId": "d1375f44-f31c-4c39-b187-99f54d796e23",
+    "buildId": "1e6b89cd-1ea1-414c-bf73-a1edd41d9430",
     "buildAssetsDir": "/_nuxt/",
     "cdnURL": ""
   },
@@ -4951,10 +4965,13 @@ const plugins = [
 
 function getSecretKey() {
   const config = useRuntimeConfig();
-  return config.adminSecretKey || process.env.ADMIN_SECRET_KEY || "nbtf-super-secret-jwt-key-2026";
+  return config.adminSecretKey || process.env.ADMIN_SECRET_KEY || ("");
 }
 function signToken(payload) {
   const secret = getSecretKey();
+  if (!secret) {
+    throw new Error("Missing ADMIN_SECRET_KEY in production");
+  }
   const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = nodeCrypto.createHmac("sha256", secret).update(data).digest("base64url");
   return `${data}.${signature}`;
@@ -4964,6 +4981,7 @@ function verifyToken(token) {
     const [data, signature] = token.split(".");
     if (!data || !signature) return null;
     const secret = getSecretKey();
+    if (!secret) return null;
     const expectedSignature = nodeCrypto.createHmac("sha256", secret).update(data).digest("base64url");
     if (!nodeCrypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
       return null;
@@ -4982,8 +5000,9 @@ function verifyToken(token) {
 const _tA6TUR = defineEventHandler(async (event) => {
   var _a;
   const path = getRequestURL(event).pathname;
-  const isProtectedPath = (path.startsWith("/api/index-data") || path.startsWith("/api/www-data") || path.startsWith("/api/reset-defaults") || path.startsWith("/api/audit-logs")) && (event.method === "POST" || event.method === "PUT" || event.method === "DELETE");
-  if (isProtectedPath) {
+  const isPublicAuthPath = path === "/api/auth/login" || path === "/api/auth/session" || path === "/api/auth/logout" || path === "/api/health";
+  const isApiAdminPath = path.startsWith("/api/") && !isPublicAuthPath;
+  if (isApiAdminPath) {
     const token = getCookie(event, "nbtf_admin_token") || ((_a = getHeader(event, "authorization")) == null ? void 0 : _a.replace("Bearer ", ""));
     if (!token) {
       throw createError$1({
@@ -5209,5 +5228,5 @@ function defineRenderHandler(render) {
   });
 }
 
-export { $fetch as $, joinURL as A, sanitizeStatusCode as B, getContext as C, createHooks as D, executeAsync as E, defu as F, hash$1 as G, withTrailingSlash as H, withoutTrailingSlash as I, setCookie as a, useRuntimeConfig as b, createError$1 as c, defineEventHandler as d, deleteCookie as e, getCookie as f, getRouteRulesForPath as g, getHeader as h, encodePath as i, joinRelativeURL as j, defineRenderHandler as k, getQuery as l, getRouteRules as m, getResponseStatusText as n, getResponseStatus as o, parseQuery as p, parseURL as q, readBody as r, signToken as s, toNodeListener as t, useNitroApp as u, verifyToken as v, withQuery as w, decodePath as x, hasProtocol as y, isScriptProtocol as z };
+export { $fetch as $, hasProtocol as A, isScriptProtocol as B, joinURL as C, sanitizeStatusCode as D, getContext as E, createHooks as F, executeAsync as G, defu as H, hash$1 as I, withTrailingSlash as J, withoutTrailingSlash as K, getSecretKey as a, getHeader as b, createError$1 as c, defineEventHandler as d, getRequestIP as e, setCookie as f, getRouteRulesForPath as g, useRuntimeConfig as h, deleteCookie as i, getCookie as j, joinRelativeURL as k, encodePath as l, defineRenderHandler as m, getQuery as n, getRouteRules as o, parseQuery as p, getResponseStatusText as q, readBody as r, signToken as s, toNodeListener as t, useNitroApp as u, verifyToken as v, withQuery as w, getResponseStatus as x, parseURL as y, decodePath as z };
 //# sourceMappingURL=nitro.mjs.map

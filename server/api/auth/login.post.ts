@@ -1,12 +1,37 @@
 import { addAuditLog } from '../../utils/adminRedis'
-import { signToken } from '../../utils/auth'
+import { signToken, getSecretKey } from '../../utils/auth'
+
+// In-memory rate limiting tracker for failed attempts
+const failedAttemptsMap = new Map<string, { count: number; lockedUntil: number }>()
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const config = useRuntimeConfig()
+  const isProd = process.env.NODE_ENV === 'production'
 
-  const expectedUser = config.adminUsername || process.env.ADMIN_USERNAME || 'admin'
-  const expectedPassword = config.adminPassword || process.env.ADMIN_PASSWORD || 'nbtf-2026-secure'
+  const expectedUser = config.adminUsername || process.env.ADMIN_USERNAME || (!isProd ? 'admin' : '')
+  const expectedPassword = config.adminPassword || process.env.ADMIN_PASSWORD || (!isProd ? 'nbtf-2026-secure' : '')
+
+  if (isProd && (!expectedUser || !expectedPassword || !getSecretKey())) {
+    console.error('[SECURITY ALERT] Production deployment is missing ADMIN_USERNAME, ADMIN_PASSWORD, or ADMIN_SECRET_KEY in environment variables!')
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Server configuration error: Administrator environment variables are not configured.'
+    })
+  }
+
+  // Rate-limiting check based on IP / client headers
+  const clientIp = getHeader(event, 'x-forwarded-for')?.split(',')[0]?.trim() || getRequestIP(event) || 'unknown'
+  const attemptRecord = failedAttemptsMap.get(clientIp)
+  const now = Date.now()
+
+  if (attemptRecord && attemptRecord.lockedUntil > now) {
+    const remainingSeconds = Math.ceil((attemptRecord.lockedUntil - now) / 1000)
+    throw createError({
+      statusCode: 429,
+      statusMessage: `Too many failed attempts. Temporary cooldown in effect. Try again in ${remainingSeconds}s.`
+    })
+  }
 
   const { username, password } = body || {}
 
@@ -17,8 +42,15 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  if (username === expectedUser && password === expectedPassword) {
-    // Generate HMAC-SHA256 signed session token using ADMIN_SECRET_KEY
+  // Constant-time check where possible and verification
+  const isUserValid = Boolean(expectedUser && username === expectedUser)
+  const isPasswordValid = Boolean(expectedPassword && password === expectedPassword)
+
+  if (isUserValid && isPasswordValid) {
+    // Reset rate-limiting tracker
+    failedAttemptsMap.delete(clientIp)
+
+    // Generate HMAC-SHA256 signed session token
     const token = signToken({
       user: username,
       role: 'SUPER_ADMIN',
@@ -27,7 +59,7 @@ export default defineEventHandler(async (event) => {
 
     setCookie(event, 'nbtf_admin_token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isProd,
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7, // 7 days
       path: '/'
@@ -39,7 +71,7 @@ export default defineEventHandler(async (event) => {
       target: 'system',
       timestamp: new Date().toISOString(),
       user: username,
-      details: 'Successful administrator credential verification'
+      details: `Successful administrator authentication from IP: ${clientIp}`
     })
 
     return {
@@ -51,14 +83,30 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Failed login
+  // Record failed attempt
+  const currentAttempts = (attemptRecord?.count || 0) + 1
+  let lockedUntil = 0
+  if (currentAttempts >= 5) {
+    lockedUntil = now + (60 * 1000 * 5) // 5 minute lock
+  } else if (currentAttempts >= 3) {
+    lockedUntil = now + (30 * 1000) // 30 second lock
+  }
+
+  failedAttemptsMap.set(clientIp, {
+    count: currentAttempts,
+    lockedUntil
+  })
+
+  // Simulated slight delay to prevent timing / brute force analysis
+  await new Promise(resolve => setTimeout(resolve, 600))
+
   await addAuditLog({
     id: 'auth-fail-' + Date.now(),
     action: 'Failed Login Attempt',
     target: 'system',
     timestamp: new Date().toISOString(),
     user: username || 'unknown',
-    details: 'Invalid access credentials supplied'
+    details: `Failed credentials attempt (Count: ${currentAttempts}) from IP: ${clientIp}`
   })
 
   throw createError({

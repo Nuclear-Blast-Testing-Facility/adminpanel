@@ -8,11 +8,15 @@ export interface SessionPayload {
 
 export function getSecretKey(): string {
   const config = useRuntimeConfig()
-  return config.adminSecretKey || process.env.ADMIN_SECRET_KEY || 'nbtf-super-secret-jwt-key-2026'
+  const isProd = process.env.NODE_ENV === 'production'
+  return config.adminSecretKey || process.env.ADMIN_SECRET_KEY || (!isProd ? 'nbtf-dev-fallback-signing-key-2026' : '')
 }
 
 export function signToken(payload: SessionPayload): string {
   const secret = getSecretKey()
+  if (!secret) {
+    throw new Error('Missing ADMIN_SECRET_KEY in production')
+  }
   const data = Buffer.from(JSON.stringify(payload)).toString('base64url')
   const signature = crypto.createHmac('sha256', secret).update(data).digest('base64url')
   return `${data}.${signature}`
@@ -24,6 +28,8 @@ export function verifyToken(token: string): SessionPayload | null {
     if (!data || !signature) return null
 
     const secret = getSecretKey()
+    if (!secret) return null
+
     const expectedSignature = crypto.createHmac('sha256', secret).update(data).digest('base64url')
 
     // Constant-time comparison to prevent timing attacks

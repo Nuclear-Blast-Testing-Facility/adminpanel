@@ -1,4 +1,4 @@
-import { b as useRuntimeConfig } from './nitro.mjs';
+import { h as useRuntimeConfig } from './nitro.mjs';
 import { Redis } from '@upstash/redis';
 import Redis$1 from 'ioredis';
 

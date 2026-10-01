@@ -3,15 +3,18 @@ import { verifyToken } from '../utils/auth'
 export default defineEventHandler(async (event) => {
   const path = getRequestURL(event).pathname
 
-  // Protect mutation / sensitive admin endpoints
-  const isProtectedPath = (
-    path.startsWith('/api/index-data') ||
-    path.startsWith('/api/www-data') ||
-    path.startsWith('/api/reset-defaults') ||
-    path.startsWith('/api/audit-logs')
-  ) && (event.method === 'POST' || event.method === 'PUT' || event.method === 'DELETE')
+  // Public paths that do not require admin authentication
+  const isPublicAuthPath = (
+    path === '/api/auth/login' ||
+    path === '/api/auth/session' ||
+    path === '/api/auth/logout' ||
+    path === '/api/health'
+  )
 
-  if (isProtectedPath) {
+  // Protect all admin data endpoints (GET, POST, PUT, DELETE)
+  const isApiAdminPath = path.startsWith('/api/') && !isPublicAuthPath
+
+  if (isApiAdminPath) {
     const token = getCookie(event, 'nbtf_admin_token') || getHeader(event, 'authorization')?.replace('Bearer ', '')
 
     if (!token) {
@@ -30,7 +33,7 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Attach authenticated user to context
+    // Attach authenticated user to request context
     event.context.user = payload.user
   }
 })
